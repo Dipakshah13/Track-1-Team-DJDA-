@@ -65,11 +65,15 @@ function PageLoader() {
   )
 }
 
+import { SecurityProvider } from './context/SecurityContext'
+
 export default function App() {
   return (
     <BrowserRouter>
-      <GrainOverlay />
-      <AnimatedRoutes />
+      <SecurityProvider>
+        <GrainOverlay />
+        <AnimatedRoutes />
+      </SecurityProvider>
     </BrowserRouter>
   )
 }

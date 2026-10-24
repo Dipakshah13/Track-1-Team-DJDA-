@@ -1,172 +1,54 @@
 /**
  * ShieldTab.tsx — Outbound Data Firewall Workstation
- * Features text input + DropZone, sample presets, FindingsTable, BeforeAfterImage, LiveTrace, and PrivacyReceipt.
+ * Fully synced with SecurityContext across Inbound Guard, Cryptographic Ledger, and 3D Scenes.
  */
-import { useState, useTransition } from 'react'
-import { Upload, FileText, Play, RotateCcw, Copy, Check, ShieldCheck, Image as ImageIcon } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Upload,
+  FileText,
+  Play,
+  RotateCcw,
+  Copy,
+  Check,
+  ShieldCheck,
+  ShieldAlert,
+  Image as ImageIcon,
+  CheckCircle2,
+  ExternalLink,
+  Layers,
+  FileCheck,
+  Download,
+} from 'lucide-react'
 import { FindingsTable } from './FindingsTable'
 import { BeforeAfterImage } from './BeforeAfterImage'
 import { LiveTrace } from './LiveTrace'
 import { PrivacyReceipt } from './PrivacyReceipt'
-import { useSSE } from '@/lib/useSSE'
-import type { Finding } from '@/lib/types'
-import { scanShieldText, scanShieldFile } from '@/lib/api'
+import { useSecurity, PRESETS } from '@/context/SecurityContext'
 
-const SAMPLES = {
-  bank: {
-    title: 'Sample Bank Statement',
-    text: `Transaction Statement - Silicon Bank India
-Account Holder: Shubham Shinde
-Account Number: 9812-4401-9921
-IFSC Code: SBIN0004921
-Registered Phone: +91 98201 54321
-Email: shubham.shinde@security.corp
-Pan Card: ABCPS1234F
-Aadhaar Linked: 4920-1823-9912
+export function ShieldTab({ onSwitchTab }: { onSwitchTab?: (tab: 'shield' | 'guard') => void }) {
+  const {
+    docInfo,
+    inputText,
+    redactedOutput,
+    findings,
+    activeMedia,
+    isProcessing,
+    receiptMeta,
+    traceSteps,
+    isTraceDone,
+    guardVerdict,
+    threatScore,
+    ledgerBlocks,
+    uploadDocument,
+    updateInputText,
+    runShieldRedaction,
+    toggleFindingDecision,
+    loadPreset,
+    setActiveMedia,
+  } = useSecurity()
 
-Recent Outgoing Transfers:
-Date: 2026-10-21 | To: Alex Chen | Amount: INR 45,000 | IBAN: DE89370400440532013000
-Notes: Payment for cloud cluster server instances and API credentials.`,
-  },
-  medical: {
-    title: 'Medical Discharge Summary',
-    text: `CONFIDENTIAL CLINICAL RECORD
-Hospital: Metro Healthcare Sciences
-Patient Name: Jane Doe
-DOB: 1984-07-12 | SSN: 000-45-6789 | Phone: (415) 555-0142
-Address: 742 Evergreen Terrace, Springfield
-Diagnosis: Recurring acute migraine with bilateral aura.
-Prescriptions: Sumatriptan 50mg PRN.
-Attending Physician: Dr. Marcus Vance, MD (License: MD-992019)`,
-  },
-  aadhaar: {
-    title: 'Aadhaar ID Card Scanned Form',
-    text: `Government of India UIDAI Verification Record
-Full Legal Name: Shubham Shinde
-Father's Name: Ramesh Shinde
-Aadhaar Number: 4920 1823 9912
-Date of Birth: 12/04/1998
-Address: Flat 402, Green Valley Towers, Pune, Maharashtra 411045
-Mobile: +91 98201 54321`,
-  },
-}
-
-export function ShieldTab() {
-  const [inputText, setInputText] = useState(SAMPLES.bank.text)
-  const [activeMedia, setActiveMedia] = useState<'text' | 'image'>('text')
-  const [isProcessing, setIsProcessing] = useState(false)
   const [copied, setCopied] = useState(false)
-
-  // Current findings state
-  const [findings, setFindings] = useState<Finding[]>([
-    {
-      id: 'f-1',
-      category: 'NAME',
-      text: 'Shubham Shinde',
-      original_text: 'Shubham Shinde',
-      placeholder: '[NAME-1]',
-      confidence: 0.98,
-      decision: 'redact',
-    },
-    {
-      id: 'f-2',
-      category: 'CARD',
-      text: '9812-4401-9921',
-      original_text: '9812-4401-9921',
-      placeholder: '[CARD-1]',
-      confidence: 0.99,
-      decision: 'redact',
-    },
-    {
-      id: 'f-3',
-      category: 'PHONE',
-      text: '+91 98201 54321',
-      original_text: '+91 98201 54321',
-      placeholder: '[PHONE-1]',
-      confidence: 0.97,
-      decision: 'redact',
-    },
-    {
-      id: 'f-4',
-      category: 'EMAIL',
-      text: 'shubham.shinde@security.corp',
-      original_text: 'shubham.shinde@security.corp',
-      placeholder: '[EMAIL-1]',
-      confidence: 0.99,
-      decision: 'redact',
-    },
-    {
-      id: 'f-5',
-      category: 'AADHAAR',
-      text: '4920-1823-9912',
-      original_text: '4920-1823-9912',
-      placeholder: '[AADHAAR-1]',
-      confidence: 0.99,
-      decision: 'redact',
-    },
-    {
-      id: 'f-6',
-      category: 'IBAN',
-      text: 'DE89370400440532013000',
-      original_text: 'DE89370400440532013000',
-      placeholder: '[IBAN-1]',
-      confidence: 0.99,
-      decision: 'redact',
-    },
-  ])
-
-  // SSE Trace
-  const { steps, isDone } = useSSE('shield-run-1', isProcessing)
-
-  // Generate redacted preview based on decisions
-  let redactedOutput = inputText
-  findings.forEach((f) => {
-    if (f.decision === 'redact' && f.original_text) {
-      redactedOutput = redactedOutput.split(f.original_text).join(f.placeholder)
-    }
-  })
-
-  const handleToggleDecision = (id: string, decision: 'keep' | 'redact') => {
-    setFindings((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, decision } : item))
-    )
-  }
-
-  const [receiptMeta, setReceiptMeta] = useState<{ duration_ms: number; ledger_hash: string }>({
-    duration_ms: 18,
-    ledger_hash: '3f8e1d2c9b4a7065e8d1a4f2c9e8b7a6d5c4e3f2b1a09876543210fedcba9876',
-  })
-
-  const handleRunScan = async () => {
-    setIsProcessing(true)
-    try {
-      const res = await scanShieldText(inputText)
-      if (res && res.findings && Array.isArray(res.findings) && res.findings.length > 0) {
-        const mapped = res.findings.map((f: any, idx: number) => ({
-          id: f.id || `f-${idx + 1}`,
-          category: f.category,
-          text: f.text || f.original_text || '',
-          original_text: f.text || f.original_text || '',
-          placeholder: f.placeholder || `[${f.category}-${idx + 1}]`,
-          confidence: f.confidence || 0.95,
-          decision: 'redact' as const,
-        }))
-        setFindings(mapped)
-      }
-      if (res.duration_ms) {
-        setReceiptMeta({
-          duration_ms: Math.round(res.duration_ms),
-          ledger_hash: res.ledger_hash || '3f8e1d2c9b4a7065e8d1a4f2c9e8b7a6d5c4e3f2b1a09876543210fedcba9876',
-        })
-      }
-    } catch (err) {
-      console.warn('Shield backend scan fallback:', err)
-    } finally {
-      setTimeout(() => {
-        setIsProcessing(false)
-      }, 800)
-    }
-  }
+  const [dragOver, setDragOver] = useState(false)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(redactedOutput)
@@ -174,70 +56,92 @@ export function ShieldTab() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDownload = () => {
+    const blob = new Blob([redactedOutput], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sanitized_${docInfo.name.replace(/\.[^/.]+$/, '')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const filename = file.name.toLowerCase()
-    const isPdf = filename.endsWith('.pdf') || file.type === 'application/pdf'
-    const isImage = file.type.startsWith('image/') || filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')
+    await uploadDocument(file)
+    e.target.value = ''
+  }
 
-    if (isImage) {
-      setActiveMedia('image')
-      e.target.value = ''
-    } else if (isPdf) {
-      setIsProcessing(true)
-      try {
-        const res = await scanShieldFile(file)
-        const docText = res.original_text || res.redacted_text || `[PDF Document: ${file.name}]`
-        setInputText(docText)
-        setActiveMedia('text')
-        if (res && res.findings && Array.isArray(res.findings)) {
-          const mapped = res.findings.map((f: any, idx: number) => ({
-            id: f.id || `f-${idx + 1}`,
-            category: f.category,
-            text: f.text || f.original_text || '',
-            original_text: f.text || f.original_text || '',
-            placeholder: f.placeholder || `[${f.category}-${idx + 1}]`,
-            confidence: f.confidence || 0.95,
-            decision: 'redact' as const,
-          }))
-          setFindings(mapped)
-        }
-        if (res.stats?.duration_ms) {
-          setReceiptMeta({
-            duration_ms: Math.round(res.stats.duration_ms),
-            ledger_hash: `sha256:${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
-          })
-        }
-      } catch (err) {
-        console.warn('PDF scan failed, reading as text fallback:', err)
-        const reader = new FileReader()
-        reader.onload = (evt) => {
-          if (typeof evt.target?.result === 'string') {
-            setInputText(evt.target.result)
-            setActiveMedia('text')
-          }
-        }
-        reader.readAsText(file)
-      } finally {
-        setIsProcessing(false)
-        e.target.value = ''
-      }
-    } else {
-      const reader = new FileReader()
-      reader.onload = (evt) => {
-        if (typeof evt.target?.result === 'string') {
-          setInputText(evt.target.result)
-          setActiveMedia('text')
-        }
-      }
-      reader.readAsText(file)
-      e.target.value = ''
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      await uploadDocument(file)
     }
+  }
+
+  const scrollToAnchor = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
   return (
     <div className="space-y-6">
+      {/* GLOBAL PIPELINE SYNC BANNER */}
+      <div className="bg-ink border border-paper/15 rounded p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono shadow-inner">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+          <span className="text-paper/60 uppercase text-[10px] tracking-wider">Synced Document:</span>
+          <span className="bg-paper/10 text-paper px-2 py-0.5 rounded font-bold border border-paper/15 flex items-center gap-1.5">
+            <FileCheck size={12} className="text-safe" />
+            <span>{docInfo.name}</span>
+            <span className="text-paper/40 text-[10px]">({docInfo.sizeBytes} bytes)</span>
+          </span>
+          {docInfo.isCustom && (
+            <span className="bg-safe/15 text-safe border border-safe/30 px-2 py-0.5 rounded text-[10px] font-bold">
+              USER DOCUMENT ACTIVE
+            </span>
+          )}
+        </div>
+
+        {/* Cross-Screen Sync Hub Links */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-paper/40 text-[11px] hidden sm:inline">Linked Layers:</span>
+          <button
+            onClick={() => onSwitchTab?.('guard')}
+            className={`px-2 py-1 rounded border flex items-center gap-1.5 transition-colors ${
+              guardVerdict === 'malicious'
+                ? 'bg-signal/20 text-signal border-signal/40'
+                : 'bg-ink-2 text-paper/80 border-paper/15 hover:border-paper/40'
+            }`}
+            title="Inspect this document for prompt injection"
+          >
+            <ShieldAlert size={12} className={guardVerdict === 'malicious' ? 'text-signal' : 'text-safe'} />
+            <span>Guard: {guardVerdict.toUpperCase()}</span>
+          </button>
+
+          <button
+            onClick={() => scrollToAnchor('shield')}
+            className="px-2 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper/80 border border-paper/15 transition-colors flex items-center gap-1.5"
+            title="View 3D Document & Before/After Scrubber"
+          >
+            <Layers size={12} className="text-signal" />
+            <span>3D Scrubber</span>
+          </button>
+
+          <button
+            onClick={() => scrollToAnchor('ledger')}
+            className="px-2 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper/80 border border-paper/15 transition-colors flex items-center gap-1.5"
+            title="View tamper-evident cryptographic hash chain"
+          >
+            <span className="text-safe font-bold">#</span>
+            <span>Audit Ledger</span>
+          </button>
+        </div>
+      </div>
+
       {/* Top Controls & Sample Presets */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-paper/10 pb-4">
         {/* Sample Loaders */}
@@ -246,28 +150,19 @@ export function ShieldTab() {
             Preloaded Presets:
           </span>
           <button
-            onClick={() => {
-              setInputText(SAMPLES.bank.text)
-              setActiveMedia('text')
-            }}
+            onClick={() => loadPreset('bank')}
             className="px-2.5 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper font-mono text-xs border border-paper/10 transition-colors"
           >
             Bank Statement
           </button>
           <button
-            onClick={() => {
-              setInputText(SAMPLES.medical.text)
-              setActiveMedia('text')
-            }}
+            onClick={() => loadPreset('medical')}
             className="px-2.5 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper font-mono text-xs border border-paper/10 transition-colors"
           >
             Medical Discharge
           </button>
           <button
-            onClick={() => {
-              setInputText(SAMPLES.aadhaar.text)
-              setActiveMedia('image')
-            }}
+            onClick={() => loadPreset('aadhaar')}
             className="px-2.5 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper font-mono text-xs border border-paper/10 transition-colors flex items-center gap-1.5"
           >
             <ImageIcon size={12} className="text-signal" />
@@ -304,40 +199,53 @@ export function ShieldTab() {
       {activeMedia === 'text' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT: Raw Source + DropZone */}
-          <div className="flex flex-col border border-paper/10 bg-ink-2 rounded-sm overflow-hidden">
+          <div
+            className={`flex flex-col border rounded-sm overflow-hidden transition-all ${
+              dragOver ? 'border-signal bg-signal/5' : 'border-paper/10 bg-ink-2'
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+          >
             <div className="px-4 py-2.5 border-b border-paper/10 flex items-center justify-between font-mono text-xs text-paper/70">
               <span className="flex items-center gap-2">
                 <FileText size={13} className="text-signal" />
                 <span>Original Outbound Payload (Local Only)</span>
               </span>
-              <label className="cursor-pointer text-paper/50 hover:text-paper flex items-center gap-1">
-                <Upload size={12} />
-                <span>Upload File</span>
+              <label className="cursor-pointer text-paper/70 hover:text-paper flex items-center gap-1.5 bg-paper/5 hover:bg-paper/10 px-2 py-0.5 rounded border border-paper/10 transition-colors">
+                <Upload size={12} className="text-signal" />
+                <span className="font-semibold">Upload File</span>
                 <input
                   type="file"
-                  onChange={handleFileUpload}
+                  onChange={handleFileInput}
                   className="hidden"
-                  accept=".pdf,.txt,.md,.json,.csv,.doc,.docx"
+                  accept=".pdf,.txt,.md,.json,.csv,.doc,.docx,image/*"
                 />
               </label>
             </div>
 
             <textarea
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => updateInputText(e.target.value)}
               rows={12}
               className="w-full bg-ink p-4 font-mono text-xs text-paper/90 leading-relaxed outline-none resize-none border-b border-paper/10 focus:ring-1 focus:ring-signal"
-              placeholder="Paste raw text, prompt, or sensitive correspondence here..."
+              placeholder="Paste raw text, prompt, or sensitive correspondence here, or drag & drop any document..."
             />
 
-            <div className="p-3 bg-ink-2 flex items-center justify-between">
-              <div className="font-mono text-[10px] text-paper/40">
-                Size: {new Blob([inputText]).size} bytes · 0 bytes transmitted
+            <div className="p-3 bg-ink-2 flex flex-wrap items-center justify-between gap-3">
+              <div className="font-mono text-[10px] text-paper/50 flex items-center gap-2">
+                <span>Size: {new Blob([inputText]).size} bytes</span>
+                <span>·</span>
+                <span className="text-safe font-bold">0 bytes transmitted</span>
+                {docInfo.isCustom && <span className="text-signal">· Synced Across App</span>}
               </div>
               <button
-                onClick={handleRunScan}
+                onClick={runShieldRedaction}
                 disabled={isProcessing}
-                className="btn btn-primary text-xs gap-1.5 py-1.5 px-4 font-mono"
+                className="btn btn-primary text-xs gap-1.5 py-1.5 px-4 font-mono shadow-md"
               >
                 <Play size={13} />
                 <span>{isProcessing ? 'Scrubbing...' : 'Run Shield Redaction'}</span>
@@ -352,21 +260,33 @@ export function ShieldTab() {
                 <ShieldCheck size={13} className="text-safe" />
                 <span>Sanitized Egress Preview</span>
               </span>
-              <button
-                onClick={handleCopy}
-                className="text-paper/50 hover:text-paper flex items-center gap-1 text-[11px]"
-              >
-                {copied ? <Check size={12} className="text-safe" /> : <Copy size={12} />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="text-paper/60 hover:text-paper flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-ink border border-paper/10"
+                  title="Download sanitized text file"
+                >
+                  <Download size={11} />
+                  <span>Export</span>
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="text-paper/70 hover:text-paper flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-ink border border-paper/10"
+                >
+                  {copied ? <Check size={12} className="text-safe" /> : <Copy size={12} />}
+                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
             </div>
 
-            <div className="w-full bg-ink p-4 font-mono text-xs text-paper/80 leading-relaxed overflow-y-auto h-[260px] whitespace-pre-wrap select-all">
+            <div className="w-full bg-ink p-4 font-mono text-xs text-paper/90 leading-relaxed overflow-y-auto h-[260px] whitespace-pre-wrap select-all">
               {redactedOutput}
             </div>
 
             <div className="p-3 bg-ink-2 border-t border-paper/10 flex items-center justify-between font-mono text-[11px]">
-              <span className="text-safe">✓ All personal markers tokenized</span>
+              <span className="text-safe font-semibold flex items-center gap-1.5">
+                <CheckCircle2 size={13} /> All personal markers tokenized
+              </span>
               <span className="text-paper/40">
                 Safe to submit to ChatGPT / Claude
               </span>
@@ -379,23 +299,21 @@ export function ShieldTab() {
 
       {/* Lower Section: Findings Table & Side Panels (LiveTrace + PrivacyReceipt) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Findings Table (8 columns) */}
+        {/* Findings Table (7 columns) */}
         <div className="lg:col-span-7">
-          <FindingsTable findings={findings} onToggleDecision={handleToggleDecision} />
+          <FindingsTable findings={findings} onToggleDecision={toggleFindingDecision} />
         </div>
 
         {/* Live Trace + Privacy Receipt (5 columns) */}
         <div className="lg:col-span-5 space-y-6">
-          <LiveTrace steps={steps} isDone={!isProcessing} />
+          <LiveTrace steps={traceSteps} isDone={isTraceDone} />
           <PrivacyReceipt
             data={{
-              timestamp: '2026-10-24 10:55:00',
-              category_counts: {
-                NAME: 1,
-                PHONE: 1,
-                EMAIL: 1,
-                IBAN: 1,
-              },
+              timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+              category_counts: findings.reduce((acc, f) => {
+                acc[f.category as any] = (acc[f.category as any] || 0) + 1
+                return acc
+              }, {} as any),
               total_items_redacted: findings.filter((f) => f.decision === 'redact').length,
               route: 'local',
               duration_ms: receiptMeta.duration_ms,

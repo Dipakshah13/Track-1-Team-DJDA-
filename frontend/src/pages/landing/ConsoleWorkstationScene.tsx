@@ -123,7 +123,11 @@ export function ConsoleWorkstationScene() {
           </div>
 
           {/* Interactive Workstation Component */}
-          {activeTab === 'shield' ? <ShieldTab /> : <GuardTab />}
+          {activeTab === 'shield' ? (
+            <ShieldTab onSwitchTab={setActiveTab} />
+          ) : (
+            <GuardTab onSwitchTab={setActiveTab} />
+          )}
         </div>
       </div>
     </div>

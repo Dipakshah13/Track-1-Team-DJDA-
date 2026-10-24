@@ -1,14 +1,16 @@
 /**
  * ShieldScene — Scene 3: 3D Perspective Outbound PII Redaction
- * 3D Tilting synthetic statement with laser sweep, live bounding tags, and before/after scrubber.
+ * 3D Tilting document with laser sweep, live bounding tags, and before/after scrubber.
+ * Connected to SecurityContext to display the user's uploaded document and real findings!
  */
 import { useRef, useState } from 'react'
 import { motion, useReducedMotion, useInView } from 'framer-motion'
 import { Reveal } from '@/components/Reveal'
 import { Card3D } from '@/components/Card3D'
-import { Shield, ShieldCheck, Eye, EyeOff, Layers, Terminal } from 'lucide-react'
+import { Shield, ShieldCheck, Eye, EyeOff, Layers, Terminal, FileCheck } from 'lucide-react'
+import { useSecurity } from '@/context/SecurityContext'
 
-const STATEMENT_FIELDS = [
+const DEFAULT_FIELDS = [
   { label: 'Account holder', value: 'James Harrington', category: 'NAME', placeholder: '[NAME-1]' },
   { label: 'Account number', value: 'GB29NWBK60161331926819', category: 'IBAN', placeholder: '[IBAN-1]' },
   { label: 'Sort code', value: '60-16-13', category: 'OTHER', placeholder: '[SORT-1]' },
@@ -20,12 +22,27 @@ export function ShieldScene() {
   const shouldReduceMotion = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-15% 0px' })
-  const [revealedCount, setRevealedCount] = useState(STATEMENT_FIELDS.length)
   const [sliderPos, setSliderPos] = useState(50)
   const [unmaskedIdx, setUnmaskedIdx] = useState<number | null>(null)
 
+  const { docInfo, inputText, redactedOutput, findings } = useSecurity()
+
+  // Dynamically derive statement fields from user uploaded document findings if available
+  const activeFields = findings.length > 0
+    ? findings.slice(0, 6).map((f, i) => ({
+        label: f.category.toLowerCase().replace('_', ' '),
+        value: f.original_text || f.text || `Field-${i + 1}`,
+        category: f.category,
+        placeholder: f.placeholder,
+      }))
+    : DEFAULT_FIELDS
+
+  // Preview lines for the interactive visual scrubber
+  const rawLines = inputText.split('\n').filter(l => l.trim().length > 0).slice(0, 4)
+  const redactedLines = redactedOutput.split('\n').filter(l => l.trim().length > 0).slice(0, 4)
+
   return (
-    <div className="section-paper py-32 px-6 md:px-12 lg:px-20 border-t border-paper/10 relative overflow-hidden" ref={ref}>
+    <div className="section-paper py-32 px-6 md:px-12 lg:px-20 border-t border-paper/10 relative overflow-hidden" ref={ref} id="shield">
       {/* Background illumination */}
       <div
         className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 pointer-events-none rounded-full"
@@ -43,13 +60,27 @@ export function ShieldScene() {
         </Reveal>
 
         <Reveal delay={0.1}>
-          <h2
-            className="font-display text-paper mb-4"
-            style={{ fontSize: 'clamp(2.5rem, 5vw, 4.5rem)', lineHeight: '1.02', letterSpacing: '-0.03em' }}
-          >
-            Redacts on your device, <br className="hidden sm:inline" />
-            before anything leaves.
-          </h2>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+            <h2
+              className="font-display text-paper"
+              style={{ fontSize: 'clamp(2.5rem, 5vw, 4.5rem)', lineHeight: '1.02', letterSpacing: '-0.03em' }}
+            >
+              Redacts on your device, <br className="hidden sm:inline" />
+              before anything leaves.
+            </h2>
+
+            {/* Document live indicator */}
+            <div className="bg-ink-2 border border-paper/15 p-2 rounded text-xs font-mono flex items-center gap-2 self-start md:self-auto shadow-md">
+              <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+              <span className="text-paper/60 uppercase text-[10px]">Active Document:</span>
+              <span className="text-paper font-bold">{docInfo.name}</span>
+              {docInfo.isCustom && (
+                <span className="bg-signal/20 text-signal text-[10px] px-1.5 py-0.5 rounded border border-signal/30 font-bold">
+                  LIVE SYNCED
+                </span>
+              )}
+            </div>
+          </div>
         </Reveal>
 
         <Reveal delay={0.2}>
@@ -69,7 +100,7 @@ export function ShieldScene() {
                   <div className="flex items-center gap-2">
                     <Terminal size={14} className="text-signal" />
                     <span className="font-bold tracking-widest text-paper text-xs uppercase">
-                      BANK STATEMENT — LOCAL OCR BUFFER
+                      {docInfo.name.toUpperCase()} — LOCAL OCR BUFFER
                     </span>
                   </div>
                   <span className="bg-safe/15 text-safe border border-safe/30 px-2 py-0.5 rounded text-[10px] font-bold">
@@ -86,13 +117,13 @@ export function ShieldScene() {
 
                 {/* Fields List */}
                 <div className="space-y-4">
-                  {STATEMENT_FIELDS.map((field, i) => (
+                  {activeFields.map((field, i) => (
                     <div
-                      key={field.label}
+                      key={`${field.label}-${i}`}
                       className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded bg-ink/70 border border-paper/10 hover:border-signal/40 transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-paper/40 text-[11px] w-32">{field.label}:</span>
+                        <span className="text-paper/40 text-[11px] w-32 uppercase tracking-wider">{field.label}:</span>
                         <span className="font-semibold text-paper/90">
                           {unmaskedIdx === i ? field.value : field.value.replace(/./g, '•')}
                         </span>
@@ -109,7 +140,7 @@ export function ShieldScene() {
                         </motion.span>
                         <button
                           onClick={() => setUnmaskedIdx(unmaskedIdx === i ? null : i)}
-                          className="text-paper/40 hover:text-paper p-1"
+                          className="text-paper/40 hover:text-paper p-1 transition-colors"
                           title="Inspect original locally"
                         >
                           {unmaskedIdx === i ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -135,22 +166,22 @@ export function ShieldScene() {
               <div className="flex items-center justify-between border-b border-paper/10 pb-3">
                 <span className="font-mono text-xs font-bold text-paper uppercase tracking-wider flex items-center gap-2">
                   <ShieldCheck size={14} className="text-safe" />
-                  <span>Sanitized Tokens ({STATEMENT_FIELDS.length})</span>
+                  <span>Sanitized Tokens ({activeFields.length})</span>
                 </span>
                 <span className="font-mono text-[10px] text-safe font-bold">100% RECALLED</span>
               </div>
 
               <div className="space-y-2">
-                {STATEMENT_FIELDS.map((field) => (
+                {activeFields.map((field, idx) => (
                   <div
-                    key={field.label}
+                    key={`${field.label}-${idx}`}
                     className="flex items-center justify-between p-2 rounded bg-ink border border-paper/5 font-mono text-xs"
                   >
                     <div className="flex items-center gap-2">
                       <span className="bg-signal/15 text-signal border border-signal/30 text-[10px] font-bold px-1.5 py-0.5 rounded">
                         {field.category}
                       </span>
-                      <span className="text-paper/80 text-[11px]">{field.label}</span>
+                      <span className="text-paper/80 text-[11px] uppercase tracking-wide">{field.label}</span>
                     </div>
                     <span className="text-safe text-[11px] font-semibold">REDACTED</span>
                   </div>
@@ -169,12 +200,14 @@ export function ShieldScene() {
               </div>
 
               {/* Visual Scrubber Window */}
-              <div className="relative h-28 bg-ink border border-paper/15 rounded overflow-hidden select-none font-mono text-xs p-3">
+              <div className="relative h-32 bg-ink border border-paper/15 rounded overflow-hidden select-none font-mono text-xs p-3">
                 {/* Original View (Underneath) */}
                 <div className="text-signal leading-relaxed">
-                  <div>Account: James Harrington (GB29NWBK60161331926819)</div>
-                  <div>Phone: +44 7911 123456 | Sort: 60-16-13</div>
-                  <div>Address: 14 Elm Street, EC1A</div>
+                  {rawLines.map((line, idx) => (
+                    <div key={`raw-${idx}`} className="truncate">
+                      {line}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Redacted View (Overlaid with clip-path) */}
@@ -182,15 +215,11 @@ export function ShieldScene() {
                   className="absolute inset-0 bg-ink-2 p-3 text-safe leading-relaxed border-l-2 border-paper"
                   style={{ left: `${sliderPos}%` }}
                 >
-                  <div className="whitespace-nowrap">
-                    Account: [NAME-1] ([IBAN-1])
-                  </div>
-                  <div className="whitespace-nowrap">
-                    Phone: [PHONE-1] | Sort: [SORT-1]
-                  </div>
-                  <div className="whitespace-nowrap">
-                    Address: [ADDR-1]
-                  </div>
+                  {redactedLines.map((line, idx) => (
+                    <div key={`red-${idx}`} className="truncate whitespace-nowrap">
+                      {line}
+                    </div>
+                  ))}
                 </div>
               </div>
 

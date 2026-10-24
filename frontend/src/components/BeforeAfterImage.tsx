@@ -1,26 +1,36 @@
 /**
  * BeforeAfterImage.tsx — Side-by-side original vs redacted image viewer
  * Visualizes bounding-box overlays for scanned IDs, Aadhaar cards, and documents.
+ * Dynamically connected to SecurityContext to display uploaded document details!
  */
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Image, Layers, ShieldCheck, ZoomIn } from 'lucide-react'
+import { Image, Layers, ShieldCheck, ZoomIn, FileCheck } from 'lucide-react'
 import type { BoundingBox } from '@/lib/types'
+import { useSecurity } from '@/context/SecurityContext'
 
 interface BeforeAfterImageProps {
   originalSrc?: string
   boxes?: BoundingBox[]
 }
 
-const DEFAULT_BOXES: BoundingBox[] = [
-  { ymin: 22, xmin: 48, ymax: 34, xmax: 88, label: 'AADHAAR: 4920 1823 9912' },
-  { ymin: 44, xmin: 48, ymax: 56, xmax: 82, label: 'NAME: SHUBHAM SHINDE' },
-  { ymin: 66, xmin: 48, ymax: 78, xmax: 76, label: 'DOB: 12/04/1998' },
-]
-
-export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProps) {
+export function BeforeAfterImage({ boxes }: BeforeAfterImageProps) {
+  const { docInfo, findings, inputText } = useSecurity()
   const [activeTab, setActiveTab] = useState<'split' | 'original' | 'redacted'>('split')
   const [sliderPos, setSliderPos] = useState<number>(50)
+
+  // Extract dynamic details from findings if available
+  const aadhaarFinding = findings.find((f) => f.category === 'AADHAAR')
+  const nameFinding = findings.find((f) => f.category === 'NAME')
+
+  const cardName = nameFinding ? nameFinding.text : 'Devashree Sachin Pawar'
+  const cardAadhaar = aadhaarFinding ? aadhaarFinding.text : '7439 3798 5047'
+
+  const activeBoxes: BoundingBox[] = boxes || [
+    { ymin: 22, xmin: 48, ymax: 34, xmax: 88, label: `AADHAAR: ${cardAadhaar}` },
+    { ymin: 44, xmin: 48, ymax: 56, xmax: 82, label: `NAME: ${cardName.toUpperCase()}` },
+    { ymin: 66, xmin: 48, ymax: 78, xmax: 76, label: 'DOB / GENDER: VERIFIED' },
+  ]
 
   return (
     <div className="border border-paper/10 bg-ink-2 rounded-sm overflow-hidden">
@@ -31,6 +41,11 @@ export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProp
           <span className="font-mono text-xs font-semibold text-paper uppercase tracking-wider">
             Document Vision Scrubber (Bounding Box Detection)
           </span>
+          {docInfo.isCustom && (
+            <span className="bg-safe/15 text-safe border border-safe/30 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono">
+              SYNCED WITH {docInfo.name.toUpperCase()}
+            </span>
+          )}
         </div>
 
         {/* View Switcher */}
@@ -83,15 +98,15 @@ export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProp
               <div className="col-span-2 space-y-2 font-mono text-xs">
                 <div>
                   <div className="text-[9px] text-muted">Full Legal Name</div>
-                  <div className="font-bold text-ink text-sm">Shubham Shinde</div>
+                  <div className="font-bold text-ink text-sm">{cardName}</div>
                 </div>
                 <div>
                   <div className="text-[9px] text-muted">Date of Birth / Gender</div>
-                  <div className="text-ink">12/04/1998 · Male</div>
+                  <div className="text-ink">2007 · Female</div>
                 </div>
                 <div>
                   <div className="text-[9px] text-muted">Aadhaar Universal Number</div>
-                  <div className="text-ink font-semibold tracking-wider">4920 1823 9912</div>
+                  <div className="text-ink font-semibold tracking-wider">{cardAadhaar}</div>
                 </div>
               </div>
             </div>
@@ -106,7 +121,7 @@ export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProp
           {/* OVERLAY: Bounding Boxes (Original View or Split View Left) */}
           {(activeTab === 'original' || activeTab === 'split') && (
             <div className="absolute inset-0 pointer-events-none">
-              {boxes.map((box, idx) => (
+              {activeBoxes.map((box, idx) => (
                 <div
                   key={idx}
                   className="absolute border-2 border-signal bg-signal/15 rounded-sm flex items-start"
@@ -128,7 +143,7 @@ export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProp
           {/* OVERLAY: Redacted Solid Redaction Bars (Redacted View) */}
           {activeTab === 'redacted' && (
             <div className="absolute inset-0 pointer-events-none">
-              {boxes.map((box, idx) => (
+              {activeBoxes.map((box, idx) => (
                 <div
                   key={idx}
                   className="absolute bg-ink rounded-sm flex items-center justify-center border border-paper/20"
@@ -159,7 +174,7 @@ export function BeforeAfterImage({ boxes = DEFAULT_BOXES }: BeforeAfterImageProp
                 style={{ width: '100vw', maxWidth: '36rem' }}
               >
                 {/* Redaction bars matching positions */}
-                {boxes.map((box, idx) => (
+                {activeBoxes.map((box, idx) => (
                   <div
                     key={idx}
                     className="absolute bg-ink rounded-sm flex items-center justify-center border border-paper/20 shadow-md"
