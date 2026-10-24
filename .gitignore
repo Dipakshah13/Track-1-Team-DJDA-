@@ -40,5 +40,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Dynamic Evaluation Results
-eval/results.md
+# Dynamic Evaluation Results (tracked for hackathon proof)
+# eval/results.md
