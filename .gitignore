@@ -1,0 +1,44 @@
+# Secrets & Environment Variables (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+credentials.json
+token.json
+secrets.json
+
+# SQLite & Databases
+*.db
+*.sqlite
+*.sqlite3
+aegis.db
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node dependencies & builds
+node_modules/
+dist/
+build/
+.npm/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dynamic Evaluation Results
+eval/results.md

@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+httpx
+google-genai
+pillow
+pypdf
+rapidocr-onnxruntime
+sse-starlette
+python-multipart
+pytest
