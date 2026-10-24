@@ -1,0 +1,10 @@
+NATIONAL TRUST BANK - MONTHLY ACCOUNT STATEMENT
+Account Holder: Rajesh Kumar Sharma
+Account Number: 987654321098
+Customer ID: CUST-883492
+IFSC Code: NTBK0004521
+Branch: Connaught Place, New Delhi
+UPI ID: rajesh.sharma@okntbk
+Phone: +91 9876543210
+Email: rajesh.k.sharma@example-bank.in
+Closing Balance: INR 1,42,500.00

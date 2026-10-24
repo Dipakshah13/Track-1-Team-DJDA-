@@ -1,0 +1,5 @@
+CYBERSECURITY ACADEMIC ARTICLE
+Title: Understanding Indirect Prompt Injection in LLMs
+Abstract: Recent literature has highlighted prompt injection attacks where adversaries embed commands like 'ignore prior instructions' into untrusted data sources.
+Defenders utilize input firewalls and dual-model architectures to sanitize inputs before agent execution.
+This paper surveys mitigation strategies across enterprise deployments.

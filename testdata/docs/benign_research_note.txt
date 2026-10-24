@@ -1,0 +1,5 @@
+DISTRIBUTED SYSTEMS RESEARCH: RAFT CONSENSUS ALGORITHM
+The Raft consensus algorithm is designed to be understandable and fault-tolerant.
+It decomposes consensus into three independent subproblems: Leader Election, Log Replication, and Safety.
+When the leader fails, a randomized election timer initiates a new term with candidates requesting votes.
+This ensures linearizability and high availability across distributed nodes without single points of failure.
