@@ -155,3 +155,102 @@ export const SUPPORTED_SITES = [
   { host: 'claude.ai',       label: 'Claude' },
   { host: 'gemini.google.com', label: 'Gemini' },
 ] as const
+
+// ─── API Client Functions ────────────────────────────────────────────────
+const API_BASE = '/api'
+
+export async function fetchHealth(): Promise<StatusResponse & Record<string, any>> {
+  const res = await fetch(`${API_BASE}/health`)
+  if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function scanShieldText(
+  text: string,
+  confidenceThreshold: number = 0.5
+): Promise<ShieldResponse> {
+  const res = await fetch(`${API_BASE}/shield/text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      source: 'web_console',
+      confidence_threshold: confidenceThreshold,
+    }),
+  })
+  if (!res.ok) throw new Error(`Shield text scan failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function scanShieldFile(file: File): Promise<any> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${API_BASE}/shield/file`, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) throw new Error(`Shield file scan failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function scanGuardText(text: string, source: string = 'web_console'): Promise<any> {
+  const res = await fetch(`${API_BASE}/guard/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, source }),
+  })
+  if (!res.ok) throw new Error(`Guard scan failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function fetchLedgerEntries(limit: number = 50): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/ledger/entries?limit=${limit}`)
+  if (!res.ok) throw new Error(`Fetch ledger entries failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function verifyLedgerChain(): Promise<{ valid: boolean; first_bad_index?: number; total_entries: number }> {
+  const res = await fetch(`${API_BASE}/ledger/verify`)
+  if (!res.ok) throw new Error(`Verify ledger failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function tamperLedgerBlock(targetIndex: number, field: string = 'findings_count'): Promise<any> {
+  const res = await fetch(`${API_BASE}/ledger/tamper`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_index: targetIndex, tamper_field: field }),
+  })
+  if (!res.ok) throw new Error(`Tamper ledger block failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function runAttackComparison(content: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/demo/naive-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!res.ok) throw new Error(`Attack comparison failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function submitCTFAttempt(prompt: string, playerName: string = 'Player1'): Promise<any> {
+  const res = await fetch(`${API_BASE}/ctf/attempt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, handle: playerName }),
+  })
+  if (!res.ok) throw new Error(`CTF submission failed: ${res.statusText}`)
+  return res.json()
+}
+
+export async function sendPipelineChat(message: string, runId: string, sessionId: string = 'default'): Promise<any> {
+  const res = await fetch(`${API_BASE}/pipeline/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, run_id: runId, session_id: sessionId }),
+  })
+  if (!res.ok) throw new Error(`Pipeline chat failed: ${res.statusText}`)
+  return res.json()
+}

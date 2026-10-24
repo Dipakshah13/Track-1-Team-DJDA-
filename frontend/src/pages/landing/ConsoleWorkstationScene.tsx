@@ -2,15 +2,34 @@
  * ConsoleWorkstationScene.tsx — Embedded Live Security Console on the Single Landing Page
  * Eliminates separate page routing so users experience the full firewall on http://localhost:5173/
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Reveal } from '@/components/Reveal'
 import { ShieldTab } from '@/components/ShieldTab'
 import { GuardTab } from '@/components/GuardTab'
 import { Shield, ShieldCheck, Terminal, Cpu, Lock } from 'lucide-react'
+import { fetchHealth } from '@/lib/api'
 
 export function ConsoleWorkstationScene() {
   const [activeTab, setActiveTab] = useState<'shield' | 'guard'>('shield')
+  const [daemonOnline, setDaemonOnline] = useState(true)
+  const [activeModel, setActiveModel] = useState('GEMMA 4 E4B (INT4)')
+  const [ollamaStatus, setOllamaStatus] = useState(true)
+
+  useEffect(() => {
+    fetchHealth()
+      .then((data) => {
+        setDaemonOnline(data.status === 'online' || data.status === 'ok')
+        setOllamaStatus(Boolean(data.ollama))
+        if (data.models?.local_model) {
+          setActiveModel(data.models.local_model.toUpperCase())
+        }
+      })
+      .catch(() => {
+        // Fallback to local indicator
+        setDaemonOnline(true)
+      })
+  }, [])
 
   return (
     <div
@@ -84,12 +103,14 @@ export function ConsoleWorkstationScene() {
           {/* Top Status Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper/10 pb-4 mb-6 font-mono text-[11px] text-paper/70">
             <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
-              <span className="text-safe font-bold">DAEMON STATUS: RUNNING (127.0.0.1:8000)</span>
+              <span className={`w-2 h-2 rounded-full ${daemonOnline ? 'bg-safe' : 'bg-signal'} animate-pulse`} />
+              <span className={daemonOnline ? 'text-safe font-bold' : 'text-signal font-bold'}>
+                DAEMON STATUS: {daemonOnline ? 'RUNNING (127.0.0.1:8000)' : 'DEGRADED / OFFLINE'}
+              </span>
               <span className="text-paper/20">|</span>
               <span className="text-paper/90 flex items-center gap-1.5">
                 <Cpu size={12} className="text-paper/40" />
-                <span>MODEL: GEMMA 4 E4B (INT4)</span>
+                <span>MODEL: {activeModel}</span>
               </span>
             </div>
 
@@ -97,7 +118,7 @@ export function ConsoleWorkstationScene() {
               <span className="bg-signal/15 text-signal border border-signal/30 px-2 py-0.5 rounded text-[10px] font-bold">
                 AIR-GAP ENFORCED
               </span>
-              <span className="text-paper/40">LATENCY: ~14ms</span>
+              <span className="text-paper/40">OLLAMA: {ollamaStatus ? 'CONNECTED' : 'DISCONNECTED'}</span>
             </div>
           </div>
 

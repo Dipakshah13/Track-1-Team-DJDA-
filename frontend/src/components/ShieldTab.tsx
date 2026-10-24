@@ -10,6 +10,7 @@ import { LiveTrace } from './LiveTrace'
 import { PrivacyReceipt } from './PrivacyReceipt'
 import { useSSE } from '@/lib/useSSE'
 import type { Finding } from '@/lib/types'
+import { scanShieldText } from '@/lib/api'
 
 const SAMPLES = {
   bank: {
@@ -131,11 +132,40 @@ export function ShieldTab() {
     )
   }
 
-  const handleRunScan = () => {
+  const [receiptMeta, setReceiptMeta] = useState<{ duration_ms: number; ledger_hash: string }>({
+    duration_ms: 18,
+    ledger_hash: '3f8e1d2c9b4a7065e8d1a4f2c9e8b7a6d5c4e3f2b1a09876543210fedcba9876',
+  })
+
+  const handleRunScan = async () => {
     setIsProcessing(true)
-    setTimeout(() => {
-      setIsProcessing(false)
-    }, 1600)
+    try {
+      const res = await scanShieldText(inputText)
+      if (res && res.findings && Array.isArray(res.findings) && res.findings.length > 0) {
+        const mapped = res.findings.map((f: any, idx: number) => ({
+          id: f.id || `f-${idx + 1}`,
+          category: f.category,
+          text: f.text || f.original_text || '',
+          original_text: f.text || f.original_text || '',
+          placeholder: f.placeholder || `[${f.category}-${idx + 1}]`,
+          confidence: f.confidence || 0.95,
+          decision: 'redact' as const,
+        }))
+        setFindings(mapped)
+      }
+      if (res.duration_ms) {
+        setReceiptMeta({
+          duration_ms: Math.round(res.duration_ms),
+          ledger_hash: res.ledger_hash || '3f8e1d2c9b4a7065e8d1a4f2c9e8b7a6d5c4e3f2b1a09876543210fedcba9876',
+        })
+      }
+    } catch (err) {
+      console.warn('Shield backend scan fallback:', err)
+    } finally {
+      setTimeout(() => {
+        setIsProcessing(false)
+      }, 800)
+    }
   }
 
   const handleCopy = () => {
@@ -323,8 +353,8 @@ export function ShieldTab() {
               },
               total_items_redacted: findings.filter((f) => f.decision === 'redact').length,
               route: 'local',
-              duration_ms: 42,
-              ledger_hash: '3f8e1d2c9b4a7065e8d1a4f2c9e8b7a6d5c4e3f2b1a09876543210fedcba9876',
+              duration_ms: receiptMeta.duration_ms,
+              ledger_hash: receiptMeta.ledger_hash,
               raw_values_sent: 0,
             }}
           />

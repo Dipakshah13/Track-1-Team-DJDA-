@@ -1,10 +1,10 @@
-/** Scene 5: Ledger — hash chain tamper demo */
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { motion, useInView, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { Reveal } from '@/components/Reveal'
 import { Card3D } from '@/components/Card3D'
+import { fetchLedgerEntries, tamperLedgerBlock, verifyLedgerChain } from '@/lib/api'
 
-const BLOCKS = [
+const DEFAULT_BLOCKS = [
   { id: 'B001', hash: 'a3f8e1d2', prev: '00000000', op: 'shield', counts: 'NAME×1, PHONE×1' },
   { id: 'B002', hash: 'b2c9f4e0', prev: 'a3f8e1d2', op: 'guard',  counts: 'no findings' },
   { id: 'B003', hash: 'c1d8a3f9', prev: 'b2c9f4e0', op: 'shield', counts: 'IBAN×1, NAME×2' },
@@ -17,6 +17,24 @@ export function LedgerScene() {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-20% 0px' })
   const [tamperedIdx, setTamperedIdx] = useState<number | null>(null)
+  const [blocks, setBlocks] = useState(DEFAULT_BLOCKS)
+
+  useEffect(() => {
+    fetchLedgerEntries(5)
+      .then((entries) => {
+        if (entries && Array.isArray(entries) && entries.length > 0) {
+          const mapped = entries.map((e, idx) => ({
+            id: `B${String(e.id || idx + 1).padStart(3, '0')}`,
+            hash: (e.hash || 'e3b0c442').slice(0, 8),
+            prev: (e.prev_hash || '00000000').slice(0, 8),
+            op: e.operation || 'shield',
+            counts: `${e.findings_count ?? 0} finding${e.findings_count === 1 ? '' : 's'}`,
+          }))
+          setBlocks(mapped)
+        }
+      })
+      .catch((err) => console.warn('Ledger fetch fallback:', err))
+  }, [])
 
   return (
     <div className="section-paper py-32 px-6 md:px-12 lg:px-20 border-t border-paper/10 relative overflow-hidden" ref={ref}>
@@ -46,7 +64,7 @@ export function LedgerScene() {
         </Reveal>
 
         <div className="max-w-sm mx-auto">
-          {BLOCKS.map((block, idx) => {
+          {blocks.map((block, idx) => {
             const isTampered = tamperedIdx !== null && idx >= tamperedIdx
             const isFirstBad = idx === tamperedIdx
 
@@ -61,7 +79,13 @@ export function LedgerScene() {
                     }`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setTamperedIdx(prev => prev === idx ? null : idx)}
+                    onClick={() => {
+                      const nextIdx = tamperedIdx === idx ? null : idx
+                      setTamperedIdx(nextIdx)
+                      if (nextIdx !== null) {
+                        tamperLedgerBlock(nextIdx + 1).catch(() => {})
+                      }
+                    }}
                     role="button"
                     tabIndex={0}
                     aria-label={`Block ${idx + 1}${isTampered ? ' — tampered' : ''}`}
@@ -94,7 +118,7 @@ export function LedgerScene() {
                   </motion.div>
                 </Card3D>
 
-                {idx < BLOCKS.length - 1 && (
+                {idx < blocks.length - 1 && (
                   <motion.div
                     className="w-0.5 h-8 mx-auto"
                     animate={{ backgroundColor: isTampered ? '#FF4B2B' : 'rgba(244,240,230,0.15)' }}

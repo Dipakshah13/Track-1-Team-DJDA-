@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Reveal } from '@/components/Reveal'
 import { Card3D } from '@/components/Card3D'
 import { Flag, Terminal, Send, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { submitCTFAttempt } from '@/lib/api'
 
 export function CTFScene() {
   const [prompt, setPrompt] = useState('')
@@ -26,28 +27,50 @@ export function CTFScene() {
     },
   ])
 
-  const handleSend = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!prompt.trim()) return
+    const text = prompt.trim()
+    if (!text || isSubmitting) return
 
-    const isHostile =
-      prompt.toLowerCase().includes('ignore') ||
-      prompt.toLowerCase().includes('flag') ||
-      prompt.toLowerCase().includes('override') ||
-      prompt.toLowerCase().includes('system') ||
-      prompt.toLowerCase().includes('dan')
+    setIsSubmitting(true)
+    try {
+      const res = await submitCTFAttempt(text)
+      const isBlocked = Boolean(res.blocked) || !res.extracted
+      const responseMsg = res.extracted
+        ? `EXPLOIT SUCCESS: Extracted flag: ${res.flag}`
+        : (res.response || res.reason || 'BLOCKED: Hostile prompt injection intercepted. Egress severed.')
 
-    const newAttempt = {
-      prompt,
-      response: isHostile
-        ? 'BLOCKED: Hostile prompt injection intercepted. Egress severed.'
-        : 'Safe Evaluation: Query safely processed. System flag remains sealed.',
-      blocked: isHostile,
-      timestamp: new Date().toLocaleTimeString(),
+      const newAttempt = {
+        prompt: text,
+        response: responseMsg,
+        blocked: isBlocked,
+        timestamp: new Date().toLocaleTimeString(),
+      }
+      setAttempts((prev) => [newAttempt, ...prev])
+    } catch {
+      // Offline fallback
+      const isHostile =
+        text.toLowerCase().includes('ignore') ||
+        text.toLowerCase().includes('flag') ||
+        text.toLowerCase().includes('override') ||
+        text.toLowerCase().includes('system') ||
+        text.toLowerCase().includes('dan')
+
+      const newAttempt = {
+        prompt: text,
+        response: isHostile
+          ? 'BLOCKED: Hostile prompt injection intercepted. Egress severed.'
+          : 'Safe Evaluation: Query safely processed. System flag remains sealed.',
+        blocked: isHostile,
+        timestamp: new Date().toLocaleTimeString(),
+      }
+      setAttempts((prev) => [newAttempt, ...prev])
+    } finally {
+      setIsSubmitting(false)
+      setPrompt('')
     }
-
-    setAttempts((prev) => [newAttempt, ...prev])
-    setPrompt('')
   }
 
   return (

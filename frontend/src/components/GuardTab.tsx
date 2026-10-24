@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, Play, FileWarning, CheckCircle2 } from 'lucide-react'
 import type { GuardVerdict, GuardFinding } from '@/lib/types'
+import { scanGuardText } from '@/lib/api'
 
 const ATTACK_SAMPLES = {
   invoice: {
@@ -85,12 +86,41 @@ Team, as we conclude the release sprint, please review the latency benchmarks fo
 export function GuardTab() {
   const [selectedKey, setSelectedKey] = useState<keyof typeof ATTACK_SAMPLES>('invoice')
   const [isScanning, setIsScanning] = useState(false)
+  const [dynamicResult, setDynamicResult] = useState<{
+    verdict?: GuardVerdict
+    confidence?: number
+    findings?: any[]
+  } | null>(null)
 
   const activeSample = ATTACK_SAMPLES[selectedKey]
+  const currentVerdict = (dynamicResult?.verdict || activeSample.verdict)
+  const currentConfidence = dynamicResult?.confidence ?? activeSample.confidence
+  const currentFindings = (dynamicResult?.findings ?? activeSample.findings) as GuardFinding[]
 
-  const handleRunScan = () => {
+  const handleRunScan = async () => {
     setIsScanning(true)
-    setTimeout(() => setIsScanning(false), 500)
+    try {
+      const res = await scanGuardText(activeSample.text)
+      if (res && res.verdict) {
+        const v = String(res.verdict).toLowerCase() as GuardVerdict
+        const findingsMapped = (res.findings || []).map((f: any, idx: number) => ({
+          id: `g-${idx + 1}`,
+          tag: (f.tag || f.type || 'INSTRUCTION_OVERRIDE').toUpperCase() as any,
+          span: f.excerpt_safe || f.span || f.location || 'Flagged token span',
+          confidence: f.confidence || 0.95,
+          explanation: f.explanation || 'Adversarial instruction detected by Gemma 4',
+        }))
+        setDynamicResult({
+          verdict: v === 'malicious' || v === 'suspicious' ? v : 'safe',
+          confidence: res.confidence || 0.95,
+          findings: findingsMapped.length > 0 ? findingsMapped : undefined,
+        })
+      }
+    } catch (err) {
+      console.warn('Guard live scan fallback:', err)
+    } finally {
+      setTimeout(() => setIsScanning(false), 500)
+    }
   }
 
   return (
@@ -104,7 +134,10 @@ export function GuardTab() {
           {Object.entries(ATTACK_SAMPLES).map(([key, item]) => (
             <button
               key={key}
-              onClick={() => setSelectedKey(key as any)}
+              onClick={() => {
+                setSelectedKey(key as any)
+                setDynamicResult(null)
+              }}
               className={`px-3 py-1 rounded font-mono text-xs border transition-colors ${
                 selectedKey === key
                   ? 'bg-paper text-ink font-semibold border-paper'
@@ -129,19 +162,19 @@ export function GuardTab() {
       {/* Top Banner: Verdict Display */}
       <div
         className={`p-5 rounded-sm border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
-          activeSample.verdict === 'malicious'
+          currentVerdict === 'malicious'
             ? 'bg-signal/10 border-signal/40 text-paper'
-            : activeSample.verdict === 'suspicious'
+            : currentVerdict === 'suspicious'
             ? 'bg-caution/10 border-caution/40 text-paper'
             : 'bg-safe/10 border-safe/40 text-paper'
         }`}
       >
         <div className="flex items-center gap-3">
-          {activeSample.verdict === 'malicious' ? (
+          {currentVerdict === 'malicious' ? (
             <div className="w-10 h-10 rounded-sm bg-signal flex items-center justify-center text-ink flex-shrink-0">
               <ShieldX size={24} />
             </div>
-          ) : activeSample.verdict === 'suspicious' ? (
+          ) : currentVerdict === 'suspicious' ? (
             <div className="w-10 h-10 rounded-sm bg-caution flex items-center justify-center text-ink flex-shrink-0">
               <ShieldAlert size={24} />
             </div>
@@ -155,23 +188,23 @@ export function GuardTab() {
             <div className="flex items-center gap-2">
               <span
                 className={`font-mono text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                  activeSample.verdict === 'malicious'
+                  currentVerdict === 'malicious'
                     ? 'bg-signal text-paper'
-                    : activeSample.verdict === 'suspicious'
+                    : currentVerdict === 'suspicious'
                     ? 'bg-caution text-ink'
                     : 'bg-safe text-paper'
                 }`}
               >
-                VERDICT: {activeSample.verdict.toUpperCase()}
+                VERDICT: {currentVerdict.toUpperCase()}
               </span>
               <span className="font-mono text-xs text-paper/60">
-                Confidence: {Math.round(activeSample.confidence * 100)}%
+                Confidence: {Math.round(currentConfidence * 100)}%
               </span>
             </div>
             <div className="font-sans text-sm text-paper/80 mt-1">
-              {activeSample.verdict === 'malicious'
+              {currentVerdict === 'malicious'
                 ? 'High-confidence adversarial injection attempt detected. Blocked from LLM context.'
-                : activeSample.verdict === 'suspicious'
+                : currentVerdict === 'suspicious'
                 ? 'Anomalous instruction patterns detected. Quarantined for manual confirmation.'
                 : 'Clean inbound content. Safe for agent ingestion.'}
             </div>
@@ -194,18 +227,18 @@ export function GuardTab() {
               <span>Inbound Content (Adversarial Spans Highlighted)</span>
             </span>
             <span className="text-[11px] text-paper/40">
-              {activeSample.findings.length} flagged span{activeSample.findings.length === 1 ? '' : 's'}
+              {currentFindings.length} flagged span{currentFindings.length === 1 ? '' : 's'}
             </span>
           </div>
 
           <div className="p-4 font-mono text-xs text-paper/90 leading-relaxed overflow-y-auto max-h-[380px] whitespace-pre-wrap select-text bg-ink">
-            {activeSample.findings.length === 0 ? (
+            {currentFindings.length === 0 ? (
               <span>{activeSample.text}</span>
             ) : (
               // Render text with red adversarial spans highlighted
               <div>
                 {activeSample.text.split('\n').map((line, lIdx) => {
-                  const matchingFinding = activeSample.findings.find((f) =>
+                  const matchingFinding = currentFindings.find((f) =>
                     line.includes(f.span) || f.span.includes(line)
                   )
 
@@ -244,13 +277,13 @@ export function GuardTab() {
             </div>
 
             <div className="p-4 space-y-3 font-mono text-xs">
-              {activeSample.findings.length === 0 ? (
+              {currentFindings.length === 0 ? (
                 <div className="text-center py-8 text-paper/40">
                   <CheckCircle2 size={24} className="mx-auto mb-2 text-safe" />
                   <div>No adversarial markers detected in document.</div>
                 </div>
               ) : (
-                activeSample.findings.map((f) => (
+                currentFindings.map((f) => (
                   <div
                     key={f.id}
                     className="p-3 rounded border border-signal/30 bg-signal/5 space-y-1.5"
