@@ -1,6 +1,6 @@
 """
 Core Pydantic data models for Gemma Aegis.
-Matches specs in docs/TRD.md §4.
+Matches specs in docs/TRD.md §4, §5, §14.
 """
 
 from typing import Literal, Optional, List, Dict, Any
@@ -104,3 +104,35 @@ class LedgerEntry(BaseModel):
     output_hash: str
     prev_hash: str
     entry_hash: str
+
+
+class LedgerVerifyResult(BaseModel):
+    valid: bool
+    checked: int
+    first_broken_id: Optional[int] = None
+
+
+class TraceEvent(BaseModel):
+    """Event emitted over Server-Sent Events (SSE) during secure-chat runs."""
+    ts: str
+    step: Literal["guard", "shield", "router", "model", "redteam", "restore", "ledger"]
+    status: Literal["start", "done", "error"]
+    detail: str
+    data: Optional[Dict[str, Any]] = None  # MUST contain no raw findings
+
+
+class SecureChatRequest(BaseModel):
+    prompt: str
+    session_id: Optional[str] = "default"
+    run_redteam: Optional[bool] = False
+
+
+class PipelineRunResult(BaseModel):
+    run_id: str
+    session_id: str
+    answer: str
+    shield_result: ShieldResult
+    guard_verdict: GuardVerdict
+    route_decision: RouteDecision
+    ledger_hash: str
+    redteam_result: Optional[RedTeamResult] = None

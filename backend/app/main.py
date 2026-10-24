@@ -1,11 +1,13 @@
 """
 FastAPI entry point for Gemma Aegis.
-Configured with CORS, health checks, and Shield & Guard routes.
+Configured with CORS, health checks, Shield & Guard, Pipeline, and Ledger routes.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.ledger_routes import router as ledger_router
+from app.api.pipeline_routes import router as pipeline_router
 from app.api.routes import router as shield_guard_router
 from app.core.config import settings
 from app.services.cloud_client import cloud_client
@@ -26,8 +28,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount core routes
+# Mount all routers
 app.include_router(shield_guard_router)
+app.include_router(pipeline_router)
+app.include_router(ledger_router)
 
 
 @app.get("/api/health")
