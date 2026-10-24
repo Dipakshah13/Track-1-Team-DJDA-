@@ -250,6 +250,7 @@ class ShieldService:
             session_id=session_id,
             mode="text",
             findings=final_findings,
+            original_text=text,
             redacted_text=redacted,
             redacted_image_b64=None,
             stats={

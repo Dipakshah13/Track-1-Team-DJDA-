@@ -58,6 +58,7 @@ class ShieldResult(BaseModel):
     session_id: str
     mode: Literal["box", "text"]
     findings: List[Finding]
+    original_text: Optional[str] = None
     redacted_text: Optional[str] = None
     redacted_image_b64: Optional[str] = None
     stats: Dict[str, Any] = Field(default_factory=dict)  # counts per category, duration_ms

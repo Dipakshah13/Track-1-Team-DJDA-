@@ -193,6 +193,24 @@ class GuardService:
                 full_text += f"\n--- Page {i+1} ---\n{page_text}"
 
             if not full_text.strip():
+                # Attempt OCR on embedded images if text stream is empty (scanned PDF)
+                try:
+                    from rapidocr_onnxruntime import RapidOCR
+                    ocr = RapidOCR()
+                    ocr_lines = []
+                    for page in reader.pages:
+                        if hasattr(page, "images"):
+                            for img_file in page.images:
+                                res, _ = ocr(img_file.data)
+                                if res:
+                                    for line in res:
+                                        ocr_lines.append(line[1])
+                    if ocr_lines:
+                        full_text = "\n".join(ocr_lines)
+                except Exception as ocr_e:
+                    logger.debug(f"Guard PDF OCR fallback skipped: {ocr_e}")
+
+            if not full_text.strip():
                 return GuardVerdict(
                     verdict="SUSPICIOUS",
                     score=0.4,

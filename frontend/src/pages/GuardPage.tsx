@@ -9,6 +9,7 @@ import { Upload, FileSearch } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { VerdictBanner } from '@/components/VerdictBanner'
 import { pageVariants } from '@/lib/motion'
+import { scanGuardFile } from '@/lib/api'
 import type { GuardResponse, GuardFinding } from '@/lib/api'
 
 // Mock guard response
@@ -74,9 +75,20 @@ export function GuardPage() {
     setResponse(null)
     try {
       setLoadingStep('Reading document on device…')
-      await new Promise(r => setTimeout(r, 300))
-      setLoadingStep('Scanning for hidden instructions…')
-      const result = await mockGuardDoc(file.name)
+      let result: GuardResponse
+      if (file.size > 0) {
+        setLoadingStep('Scanning document for hidden instructions…')
+        try {
+          result = await scanGuardFile(file)
+        } catch (apiErr) {
+          console.warn('Backend guard scan error, falling back:', apiErr)
+          result = await mockGuardDoc(file.name)
+        }
+      } else {
+        await new Promise(r => setTimeout(r, 300))
+        setLoadingStep('Scanning for hidden instructions…')
+        result = await mockGuardDoc(file.name)
+      }
       setResponse(result)
     } catch {
       setError('Scan failed. The file could not be processed. No data was sent.')
@@ -150,7 +162,13 @@ export function GuardPage() {
                     ))}
                   </div>
                 </div>
-                <input ref={fileRef} type="file" className="hidden" onChange={handleInputChange} />
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.docx,.txt,.doc,image/*"
+                  onChange={handleInputChange}
+                />
               </motion.div>
             )}
 

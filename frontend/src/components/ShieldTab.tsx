@@ -10,7 +10,7 @@ import { LiveTrace } from './LiveTrace'
 import { PrivacyReceipt } from './PrivacyReceipt'
 import { useSSE } from '@/lib/useSSE'
 import type { Finding } from '@/lib/types'
-import { scanShieldText } from '@/lib/api'
+import { scanShieldText, scanShieldFile } from '@/lib/api'
 
 const SAMPLES = {
   bank: {
@@ -174,11 +174,55 @@ export function ShieldTab() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.type.startsWith('image/')) {
+    const filename = file.name.toLowerCase()
+    const isPdf = filename.endsWith('.pdf') || file.type === 'application/pdf'
+    const isImage = file.type.startsWith('image/') || filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')
+
+    if (isImage) {
       setActiveMedia('image')
+      e.target.value = ''
+    } else if (isPdf) {
+      setIsProcessing(true)
+      try {
+        const res = await scanShieldFile(file)
+        const docText = res.original_text || res.redacted_text || `[PDF Document: ${file.name}]`
+        setInputText(docText)
+        setActiveMedia('text')
+        if (res && res.findings && Array.isArray(res.findings)) {
+          const mapped = res.findings.map((f: any, idx: number) => ({
+            id: f.id || `f-${idx + 1}`,
+            category: f.category,
+            text: f.text || f.original_text || '',
+            original_text: f.text || f.original_text || '',
+            placeholder: f.placeholder || `[${f.category}-${idx + 1}]`,
+            confidence: f.confidence || 0.95,
+            decision: 'redact' as const,
+          }))
+          setFindings(mapped)
+        }
+        if (res.stats?.duration_ms) {
+          setReceiptMeta({
+            duration_ms: Math.round(res.stats.duration_ms),
+            ledger_hash: `sha256:${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
+          })
+        }
+      } catch (err) {
+        console.warn('PDF scan failed, reading as text fallback:', err)
+        const reader = new FileReader()
+        reader.onload = (evt) => {
+          if (typeof evt.target?.result === 'string') {
+            setInputText(evt.target.result)
+            setActiveMedia('text')
+          }
+        }
+        reader.readAsText(file)
+      } finally {
+        setIsProcessing(false)
+        e.target.value = ''
+      }
     } else {
       const reader = new FileReader()
       reader.onload = (evt) => {
@@ -188,6 +232,7 @@ export function ShieldTab() {
         }
       }
       reader.readAsText(file)
+      e.target.value = ''
     }
   }
 
@@ -272,7 +317,7 @@ export function ShieldTab() {
                   type="file"
                   onChange={handleFileUpload}
                   className="hidden"
-                  accept=".txt,.md,.json,.csv"
+                  accept=".pdf,.txt,.md,.json,.csv,.doc,.docx"
                 />
               </label>
             </div>

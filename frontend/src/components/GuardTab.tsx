@@ -4,9 +4,9 @@
  * Text view highlighting flagged adversarial spans in red with attack tags.
  */
 import { useState } from 'react'
-import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, Play, FileWarning, CheckCircle2 } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, Play, FileWarning, CheckCircle2, Upload } from 'lucide-react'
 import type { GuardVerdict, GuardFinding } from '@/lib/types'
-import { scanGuardText } from '@/lib/api'
+import { scanGuardText, scanGuardFile } from '@/lib/api'
 
 const ATTACK_SAMPLES = {
   invoice: {
@@ -84,7 +84,8 @@ Team, as we conclude the release sprint, please review the latency benchmarks fo
 }
 
 export function GuardTab() {
-  const [selectedKey, setSelectedKey] = useState<keyof typeof ATTACK_SAMPLES>('invoice')
+  const [selectedKey, setSelectedKey] = useState<keyof typeof ATTACK_SAMPLES | null>('invoice')
+  const [customDoc, setCustomDoc] = useState<{ title: string; text: string } | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [dynamicResult, setDynamicResult] = useState<{
     verdict?: GuardVerdict
@@ -92,10 +93,44 @@ export function GuardTab() {
     findings?: any[]
   } | null>(null)
 
-  const activeSample = ATTACK_SAMPLES[selectedKey]
+  const activeSample = customDoc && selectedKey === null
+    ? { title: customDoc.title, text: customDoc.text, verdict: 'safe' as GuardVerdict, confidence: 0.95, findings: [] }
+    : ATTACK_SAMPLES[selectedKey || 'invoice']
   const currentVerdict = (dynamicResult?.verdict || activeSample.verdict)
   const currentConfidence = dynamicResult?.confidence ?? activeSample.confidence
   const currentFindings = (dynamicResult?.findings ?? activeSample.findings) as GuardFinding[]
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsScanning(true)
+    try {
+      const res = await scanGuardFile(file)
+      const v = res.verdict
+      const findingsMapped = (res.findings || []).map((f: any, idx: number) => ({
+        id: `g-${idx + 1}`,
+        tag: 'PROMPT_INJECTION',
+        span: f.excerpt_safe || f.location || 'Flagged span in document',
+        confidence: f.confidence || 0.95,
+        explanation: f.excerpt_safe || 'Adversarial instruction detected by Gemma 4',
+      }))
+      setCustomDoc({
+        title: file.name,
+        text: `[Scanned File: ${file.name}]\nVerdict: ${v.toUpperCase()} (Confidence: ${Math.round(res.confidence * 100)}%)\nFlagged Spans: ${findingsMapped.length}`,
+      })
+      setSelectedKey(null)
+      setDynamicResult({
+        verdict: v,
+        confidence: res.confidence,
+        findings: findingsMapped,
+      })
+    } catch (err) {
+      console.warn('Guard file upload scan fallback:', err)
+    } finally {
+      setIsScanning(false)
+      e.target.value = ''
+    }
+  }
 
   const handleRunScan = async () => {
     setIsScanning(true)
@@ -136,6 +171,7 @@ export function GuardTab() {
               key={key}
               onClick={() => {
                 setSelectedKey(key as any)
+                setCustomDoc(null)
                 setDynamicResult(null)
               }}
               className={`px-3 py-1 rounded font-mono text-xs border transition-colors ${
@@ -147,6 +183,30 @@ export function GuardTab() {
               {item.title}
             </button>
           ))}
+
+          {customDoc && (
+            <button
+              onClick={() => setSelectedKey(null)}
+              className={`px-3 py-1 rounded font-mono text-xs border transition-colors ${
+                selectedKey === null
+                  ? 'bg-paper text-ink font-semibold border-paper'
+                  : 'bg-ink-2 text-paper/60 hover:text-paper border-paper/10'
+              }`}
+            >
+              📄 {customDoc.title}
+            </button>
+          )}
+
+          <label className="cursor-pointer px-2.5 py-1 rounded bg-ink-2 hover:bg-paper/10 text-paper font-mono text-xs border border-paper/10 flex items-center gap-1.5 transition-colors">
+            <Upload size={12} />
+            <span>Upload Document / PDF</span>
+            <input
+              type="file"
+              accept=".pdf,.docx,.txt,.doc,image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </label>
         </div>
 
         <button

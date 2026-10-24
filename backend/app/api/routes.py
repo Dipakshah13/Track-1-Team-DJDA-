@@ -37,20 +37,69 @@ async def redact_text_endpoint(req: ShieldTextRequest):
 
 
 @router.post("/shield/image", response_model=ShieldResult)
-async def redact_image_endpoint(
+@router.post("/shield/file", response_model=ShieldResult)
+async def redact_file_endpoint(
     file: UploadFile = File(...),
     session_id: Optional[str] = Form("default"),
     mode: Optional[str] = Form("auto"),
 ):
     """
-    Ingests an image (PNG/JPEG), runs Gemma 4 box_2d detection or RapidOCR fallback,
-    and applies Gaussian blur over detected sensitive items.
+    Ingests ANY uploaded file:
+    - Images (PNG, JPG, JPEG, WEBP): runs visual detection & Gaussian blur
+    - PDFs: extracts document text via pypdf and runs full hybrid PII redaction
+    - Text/Code/Data: decodes content and runs hybrid PII redaction
     """
     try:
         content = await file.read()
-        return await shield_service.redact_image(content, session_id=session_id or "default", mode=mode or "auto")
+        filename = (file.filename or "").lower()
+        content_type = (file.content_type or "").lower()
+
+        is_image = (
+            content_type.startswith("image/")
+            or filename.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"))
+        )
+
+        if is_image:
+            return await shield_service.redact_image(
+                content, session_id=session_id or "default", mode=mode or "auto"
+            )
+
+        if filename.endswith(".pdf") or "pdf" in content_type:
+            import io
+            import pypdf
+
+            reader = pypdf.PdfReader(io.BytesIO(content))
+            extracted_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            if not extracted_text.strip():
+                try:
+                    from rapidocr_onnxruntime import RapidOCR
+                    ocr = RapidOCR()
+                    ocr_lines = []
+                    for page in reader.pages:
+                        if hasattr(page, "images"):
+                            for img_file in page.images:
+                                res, _ = ocr(img_file.data)
+                                if res:
+                                    for line in res:
+                                        ocr_lines.append(line[1])
+                    if ocr_lines:
+                        extracted_text = "\n".join(ocr_lines)
+                except Exception:
+                    pass
+
+            if not extracted_text.strip():
+                extracted_text = f"[Scanned PDF Document: {file.filename}]"
+            return await shield_service.redact_text(extracted_text, session_id=session_id or "default")
+
+        # Standard text, markdown, json, csv, etc.
+        try:
+            text_content = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text_content = content.decode("latin-1", errors="replace")
+
+        return await shield_service.redact_text(text_content, session_id=session_id or "default")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image redaction failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"File redaction failed: {str(e)}")
 
 
 @router.post("/shield/restore", response_model=RestoreResponse)
@@ -75,8 +124,17 @@ async def scan_guard_endpoint(request: Request):
             form = await request.form()
             uploaded_file = form.get("file")
             if uploaded_file and hasattr(uploaded_file, "read"):
-                pdf_bytes = await uploaded_file.read()
-                return await guard_service.scan_pdf(pdf_bytes)
+                file_bytes = await uploaded_file.read()
+                filename = (getattr(uploaded_file, "filename", "") or "").lower()
+                c_type = (getattr(uploaded_file, "content_type", "") or "").lower()
+                if filename.endswith(".pdf") or "pdf" in c_type:
+                    return await guard_service.scan_pdf(file_bytes)
+                else:
+                    try:
+                        text_val = file_bytes.decode("utf-8")
+                    except UnicodeDecodeError:
+                        text_val = file_bytes.decode("latin-1", errors="replace")
+                    return await guard_service.scan(text_val)
             text_val = form.get("content") or form.get("text")
             if text_val:
                 return await guard_service.scan(str(text_val))

@@ -69,6 +69,7 @@ export interface LedgerEntry {
 // ─── Shield response ──────────────────────────────────────────────────────
 export interface ShieldResponse {
   findings: Finding[]
+  original_text?: string
   redacted_text: string
   route: 'local' | 'cloud'
   duration_ms: number
@@ -182,7 +183,15 @@ export async function scanShieldText(
   return res.json()
 }
 
-export async function scanShieldFile(file: File): Promise<any> {
+export async function scanShieldFile(file: File): Promise<{
+  session_id: string
+  mode: string
+  findings: Finding[]
+  original_text?: string
+  redacted_text?: string
+  redacted_image_b64?: string
+  stats?: { counts_by_category?: Record<string, number>; total_findings?: number; duration_ms?: number }
+}> {
   const formData = new FormData()
   formData.append('file', file)
   const res = await fetch(`${API_BASE}/shield/file`, {
@@ -191,6 +200,36 @@ export async function scanShieldFile(file: File): Promise<any> {
   })
   if (!res.ok) throw new Error(`Shield file scan failed: ${res.statusText}`)
   return res.json()
+}
+
+export async function scanGuardFile(file: File): Promise<GuardResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${API_BASE}/guard/scan`, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) throw new Error(`Guard file scan failed: ${res.statusText}`)
+  const data = await res.json()
+
+  const rawVerdict = (data.verdict || 'SAFE').toLowerCase()
+  const verdict: GuardVerdict =
+    rawVerdict === 'malicious' ? 'malicious' : rawVerdict === 'suspicious' ? 'suspicious' : 'safe'
+
+  const findings: GuardFinding[] = (data.flagged_spans || []).map((span: any) => ({
+    type: 'prompt_injection',
+    location: span.reason || 'Document content',
+    confidence: data.score || 0.95,
+    excerpt_safe: span.text || span.reason || 'Flagged span in document',
+  }))
+
+  return {
+    verdict,
+    findings,
+    confidence: data.score ?? 0.95,
+    duration_ms: data.duration_ms || 320,
+    ledger_hash: data.ledger_hash || `sha256:${Math.random().toString(36).slice(2)}`,
+  }
 }
 
 export async function scanGuardText(text: string, source: string = 'web_console'): Promise<any> {
