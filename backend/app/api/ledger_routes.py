@@ -19,6 +19,7 @@ class TamperRequest(BaseModel):
 
 
 @router.get("", response_model=List[LedgerEntry])
+@router.get("/entries", response_model=List[LedgerEntry])
 async def list_ledger_entries(limit: int = Query(50, ge=1, le=500)):
     """
     List audit records in descending chronological order.
@@ -37,6 +38,7 @@ async def verify_ledger():
 
 
 @router.post("/simulate-tamper")
+@router.post("/tamper")
 async def simulate_tamper_endpoint(req: TamperRequest):
     """
     DEMO HELPER: Deliberately mutates a record in SQLite to demonstrate
