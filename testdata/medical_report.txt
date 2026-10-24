@@ -1,0 +1,19 @@
+[DEMO FIXTURE - ALL DATA SYNTHETIC]
+
+Patient Referral Note
+Date: 2026-10-14
+Referring Physician: Dr. Marcus Vance, MD
+Patient Name: Jane Doe
+DOB: 1984-07-12
+SSN: 000-45-6789
+Phone: (415) 555-0142
+Address: 742 Evergreen Terrace, Springfield
+
+Clinical Notes:
+Patient reports recurring migraines with aura. Current medication includes sumatriptan 50mg PRN.
+Blood pressure: 120/80. No known drug allergies.
+
+Billing Info:
+Primary Insurance: HealthGuard PPO
+Policy ID: HGP-88392019
+Copay receipt: Paid via Visa ending in 4242.

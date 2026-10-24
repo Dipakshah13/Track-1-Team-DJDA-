@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      background: #0E0E10;
+      color: #F4F0E6;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(244, 240, 230, 0.15);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.02em;
+    }
+    .badge {
+      background: #2E8B57;
+      color: #FFFFFF;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .stat-card {
+      background: #1A1A1E;
+      border: 1px solid rgba(244, 240, 230, 0.1);
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .stat-num {
+      font-size: 20px;
+      font-weight: 700;
+      color: #FF4B2B;
+    }
+    .stat-label {
+      color: #77746B;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .footer {
+      margin-top: 14px;
+      font-size: 10px;
+      color: #77746B;
+      display: flex;
+      justify-content: space-between;
+    }
+    a {
+      color: #FF4B2B;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">GEMMA AEGIS</div>
+    <div class="badge" id="status-badge">ACTIVE</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-num" id="redacted-count">0</div>
+    <div class="stat-label">Secrets redacted before egress</div>
+  </div>
+
+  <div class="stat-card">
+    <div style="font-size: 11px; color: #D6D0C2; margin-bottom: 4px;">Host Protection</div>
+    <div style="font-size: 10px; color: #77746B;">ChatGPT · Claude · Gemini</div>
+  </div>
+
+  <div class="footer">
+    <span>Daemon: localhost:8000</span>
+    <a href="http://localhost:5173" target="_blank">Open Console ↗</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
